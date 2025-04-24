@@ -13,6 +13,26 @@ const difficultySettings = {
 };
 
 function App() {
+const overlayStyle: React.CSSProperties = {
+  position: "absolute",
+  top: 0, left: 0, right: 0, bottom: 0,
+  backgroundColor: "rgba(0,0,0,0.7)",
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "center",
+  alignItems: "center",
+  color: "white",
+  fontSize: "32px",
+  zIndex: 10,
+};
+
+const buttonStyle: React.CSSProperties = {
+  marginTop: "20px",
+  padding: "10px 20px",
+  fontSize: "18px",
+  cursor: "pointer",
+};
+
   const [difficulty, setDifficulty] = useState<Difficulty>("easy");
   const [board, setBoard] = useState<Cell[][]>([]);
   const [gameKey, setGameKey] = useState(0);
@@ -196,7 +216,25 @@ function App() {
   }  
   
   return (
-    <div style={{ padding: "20px", fontFamily: "sans-serif" }}>
+    <div style={{ padding: "20px", fontFamily: "sans-serif", position: "relative" }}>
+      {/* ===== GAME OVER & WIN OVERLAY ===== */}
+      {gameOver && (
+        <div style={overlayStyle}>
+          💥 <strong>Game Over!</strong>
+          <button style={buttonStyle} onClick={() => setGameKey((k) => k + 1)}>
+            🔄 Restart
+          </button>
+        </div>
+      )}
+      {win && (
+        <div style={overlayStyle}>
+          🎉 <strong>You Win!</strong>
+          <button style={buttonStyle} onClick={() => setGameKey((k) => k + 1)}>
+            🔄 Play Again
+          </button>
+        </div>
+      )}
+      {/* ===================================== */}
       {gameOver && <p style={{ color: "red" }}>💥 You hit a mine! Game Over!</p>}
       {win && <p style={{ color: "green" }}>🎉 You cleared the field! You win!</p>}
       <h1 style={{ fontSize: "24px", fontWeight: "bold", marginBottom: "10px" }}>
