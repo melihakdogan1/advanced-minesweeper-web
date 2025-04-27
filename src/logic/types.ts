@@ -7,5 +7,6 @@ export interface Cell {
     nearbyMines: number;
 }
 
+export type Difficulty = "easy" | "medium" | "hard";
 
   

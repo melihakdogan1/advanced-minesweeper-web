@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from "react";
+import Controls from "../components/Controls";
+import Board from "../components/Board";
+import Overlay from "../components/Overlay";
 import { generateBoard } from "../logic/generateBoard";
 import { Cell } from "../logic/types";
 import { FaLightbulb } from "react-icons/fa";
+import { calculateAISuggestions, Certainty } from "../logic/ai";
+import { Difficulty } from "../logic/types";
 
-// Define difficulty levels
-type Difficulty = "easy" | "medium" | "hard";
 
 const difficultySettings = {
   easy: { rows: 8, cols: 8, mines: 10 },
@@ -42,19 +45,38 @@ const buttonStyle: React.CSSProperties = {
   { row: number; col: number; certainty: "certain" | "probable" }[]
   >([]);
   const [aiUsesLeft, setAiUsesLeft] = useState(3);
+  const [time, setTime] = useState(0);
 
   const { rows, cols, mines } = difficultySettings[difficulty];
 
   useEffect(() => {
     const newBoard = generateBoard(rows, cols, mines);
     setBoard(newBoard);
+
     setAiSuggestions([]);
     setGameOver(false);
     setWin(false);
     setAiUsesLeft(3);
+    setTime(0);
+    setStarted(false);
   }, [difficulty, gameKey]);
 
+  useEffect(() => {
+    // Do not start timer until first click happens;
+    // and stop when game ends
+    if (!started || gameOver || win) return;
+
+    const interval = setInterval(() => {
+      setTime((t) => t + 1);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [gameOver, win, gameKey]);
+
+  const [started, setStarted] = useState(false);
+
   function handleCellClick(row: number, col: number) {
+    if (!started) setStarted(true);
     if (gameOver || win) return;
 
     setBoard((prev) => {
@@ -128,77 +150,6 @@ const buttonStyle: React.CSSProperties = {
     }
   }
 
-  function calculateAISuggestions(board: Cell[][]): {
-    row: number;
-    col: number;
-    certainty: "certain" | "probable";
-  }[] {
-    const suggestions: {
-      row: number;
-      col: number;
-      certainty: "certain" | "probable";
-    }[] = [];
-  
-    for (let row = 0; row < board.length; row++) {
-      for (let col = 0; col < board[0].length; col++) {
-        const cell = board[row][col];
-  
-        if (!cell.isRevealed || cell.nearbyMines === 0) continue;
-  
-        const neighbors: { row: number; col: number }[] = [];
-        let hidden = 0;
-  
-        for (let dx of [-1, 0, 1]) {
-          for (let dy of [-1, 0, 1]) {
-            if (dx === 0 && dy === 0) continue;
-  
-            const newRow = row + dx;
-            const newCol = col + dy;
-  
-            if (
-              newRow >= 0 &&
-              newRow < board.length &&
-              newCol >= 0 &&
-              newCol < board[0].length
-            ) {
-              const neighbor = board[newRow][newCol];
-  
-              if (!neighbor.isRevealed && !neighbor.isFlagged) {
-                hidden++;
-                neighbors.push({ row: newRow, col: newCol });
-              }
-            }
-          }
-        }
-  
-        if (hidden === cell.nearbyMines) {
-          neighbors.forEach((n) => {
-            if (!suggestions.some((s) => s.row === n.row && s.col === n.col)) {
-              suggestions.push({ ...n, certainty: "probable" });
-            }
-          });
-        }
-  
-        const flaggedCount = neighbors.filter((n) =>
-          suggestions.some(
-            (s) => s.row === n.row && s.col === n.col && s.certainty === "probable"
-          )
-        ).length;
-  
-        if (flaggedCount === cell.nearbyMines) {
-          neighbors.forEach((n) => {
-            if (!suggestions.some((s) => s.row === n.row && s.col === n.col)) {
-              suggestions.push({ ...n, certainty: "certain" });
-            }
-          });
-        }
-      }
-    }
-  
-    return suggestions;
-  }
-  
-
   function useAiHint() {
     if (aiUsesLeft > 0 && !gameOver && !win && difficulty === "hard") {
       const suggestions = calculateAISuggestions(board);
@@ -217,124 +168,44 @@ const buttonStyle: React.CSSProperties = {
   
   return (
     <div style={{ padding: "20px", fontFamily: "sans-serif", position: "relative" }}>
-      {/* ===== GAME OVER & WIN OVERLAY ===== */}
-      {gameOver && (
-        <div style={overlayStyle}>
-          💥 <strong>Game Over!</strong>
-          <button style={buttonStyle} onClick={() => setGameKey((k) => k + 1)}>
-            🔄 Restart
-          </button>
-        </div>
-      )}
-      {win && (
-        <div style={overlayStyle}>
-          🎉 <strong>You Win!</strong>
-          <button style={buttonStyle} onClick={() => setGameKey((k) => k + 1)}>
-            🔄 Play Again
-          </button>
-        </div>
-      )}
-      {/* ===================================== */}
+      {/* unified overlay component */}
+      <Overlay
+        gameOver={gameOver}
+        win={win}
+        onRestart={() => setGameKey(k => k + 1)}
+      />
+  
+      {/* status messages */}
       {gameOver && <p style={{ color: "red" }}>💥 You hit a mine! Game Over!</p>}
-      {win && <p style={{ color: "green" }}>🎉 You cleared the field! You win!</p>}
+      {win      && <p style={{ color: "green" }}>🎉 You cleared the field! You win!</p>}
+  
+      {/* title */}
       <h1 style={{ fontSize: "24px", fontWeight: "bold", marginBottom: "10px" }}>
         🚀 Advanced Minesweeper Web
       </h1>
-
-      <div style={{ marginBottom: "10px", display: "flex", alignItems: "center", gap: "10px" }}>
-        <label>Select difficulty: </label>
-        <select
-          value={difficulty}
-          onChange={(e) => setDifficulty(e.target.value as Difficulty)}
-        >
-          <option value="easy">Easy (8x8, 10 mines)</option>
-          <option value="medium">Medium (16x16, 40 mines)</option>
-          <option value="hard">Hard (24x24, 99 mines)</option>
-        </select>
-
-        <button
-          onClick={() => setGameKey((prev) => prev + 1)}
-          style={{ padding: "5px 10px" }}
-        >
-          🔄 Restart
-        </button>
-
-        {difficulty === "hard" && (
-          <button
-            onClick={useAiHint}
-            disabled={aiUsesLeft === 0}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "5px",
-              padding: "5px 10px",
-              backgroundColor: aiUsesLeft === 0 ? "#ccc" : "#fef08a",
-              border: "1px solid #aaa",
-              cursor: aiUsesLeft === 0 ? "not-allowed" : "pointer",
-              color: aiUsesLeft === 0 ? "#777" : "black",
-            }}
-          >
-            <FaLightbulb /> Hint ({aiUsesLeft})
-          </button>
-        )}
-      </div>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: `repeat(${cols}, 30px)`,
-          gap: "2px",
-        }}
-      >
-        {board.map((row, rowIndex) =>
-          row.map((cell, colIndex) => (
-            <div
-              key={`${rowIndex}-${colIndex}`}
-              style={{
-                width: "30px",
-                height: "30px",
-                border: "1px solid #888",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "14px",
-                cursor: gameOver || win ? "not-allowed" : "pointer",
-                backgroundColor: cell.isRevealed
-                ? "#e2e8f0"
-                : aiSuggestions.some(
-                    (s) =>
-                    s.row === rowIndex &&
-                    s.col === colIndex &&
-                    s.certainty === "certain"
-                  )
-                ? "#d1fae5"
-                : aiSuggestions.some(
-                    (s) =>
-                    s.row === rowIndex &&
-                    s.col === colIndex &&
-                    s.certainty === "probable"
-                  )
-                ? "#fef9c3"
-                : "#f8fafc",
-              }}
-              onClick={() => handleCellClick(rowIndex, colIndex)}
-              onContextMenu={(e) => handleRightClick(e, rowIndex, colIndex)}
-            >
-              {cell.isRevealed
-                ? cell.isMine
-                  ? "💣"
-                  : cell.nearbyMines > 0
-                  ? cell.nearbyMines
-                  : ""
-                : cell.isFlagged
-                ? "🚩"
-                : ""}
-            </div>
-          ))
-        )}
-      </div>
+  
+      {/* controls (difficulty selector, restart, hint button, timer) */}
+      <Controls
+        difficulty={difficulty}
+        onDifficultyChange={d => setDifficulty(d)}
+        onRestart={() => setGameKey(k => k + 1)}
+        aiUsesLeft={aiUsesLeft}
+        onAiHint={useAiHint}
+        time={time}
+      />
+  
+      {/* the actual board grid */}
+      <Board
+        board={board}
+        onCellClick={handleCellClick}
+        onCellRightClick={handleRightClick}
+        aiSuggestions={aiSuggestions}
+        gameOver={gameOver}
+        win={win}
+      />
     </div>
   );
+  
 }
 
 export default App;
